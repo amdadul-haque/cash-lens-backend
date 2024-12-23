@@ -19,6 +19,9 @@ mongoose
   .catch((err) => console.error('MongoDB connection error:', err));
 
 // Define routes
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
 const exampleRoutes = require('./routes/exampleRoutes');
 app.use('/api/example', exampleRoutes);
 
