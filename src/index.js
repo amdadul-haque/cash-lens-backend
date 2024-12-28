@@ -31,4 +31,6 @@ app.use('/api/expense', expenseRoutes);
 const categoryRoutes = require('./routes/category');
 app.use('/api/category', categoryRoutes);
 
+// app.listen(3000, () => console.log('Server running on port 3000'));
+
 module.exports = app;

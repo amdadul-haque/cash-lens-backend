@@ -4,12 +4,50 @@ const expense = require('../models/expense');
 
 router.get('/', async (req, res) => {
   try {
-    const expenses = await expense.find();
+    const { from_date, to_date } = req.query;
+
+    // Parse and validate dates
+    const fromDate = from_date ? new Date(from_date) : null;
+    const toDate = to_date ? new Date(to_date) : null;
+
+    // Fetch all expenses
+    let expenses = await expense.find();
+
+    // Filter expenses by date range if provided
+    if (fromDate && toDate) {
+      expenses = expenses.filter(
+        (item) =>
+          new Date(item.date) >= fromDate && new Date(item.date) <= toDate
+      );
+    } else if (fromDate) {
+      expenses = expenses.filter((item) => new Date(item.date) >= fromDate);
+    } else if (toDate) {
+      expenses = expenses.filter((item) => new Date(item.date) <= toDate);
+    }
+
+    // Calculate total amount of filtered data
+    const totalAmount = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+
+    // Transform the filtered data by category
+    const transformedData = Object.values(
+      expenses.reduce((acc, item) => {
+        const category = item.category;
+        if (!acc[category]) {
+          acc[category] = { category, items: [], totalItems: 0, totalAmount: 0 };
+        }
+        acc[category].totalItems += 1;
+        acc[category].totalAmount += item.amount;
+        acc[category].items.push(item);
+        return acc;
+      }, {})
+    );
+
     res.json({
       status: true,
       message: 'Fetched expenses successfully',
-      total: expenses.length,
-      data: expenses.sort((a, b) => a.date - b.date) // You can keep your sorting logic here
+      totalAmount,
+      itemCount: expenses.length,
+      data: transformedData
     });
   } catch (err) {
     res.status(500).json({
@@ -19,6 +57,7 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
 
 
 router.get('/total', async (req, res) => {
@@ -42,9 +81,14 @@ router.get('/total', async (req, res) => {
   }
 });
 
+
+const categoryModel = require('../models/category');
+
 router.post('/add', async (req, res) => {
   const { name, amount, category, date } = req.body;
   const errors = [];
+
+  // Validate input fields
   if (!name) {
     errors.push('Name is required.');
   }
@@ -56,19 +100,37 @@ router.post('/add', async (req, res) => {
   if (!category) {
     errors.push('Category is required.');
   }
+
   if (errors.length > 0) {
     return res.status(400).json({ errors });
   }
+
   try {
-    const newExpense = new expense({ name, amount, category, date });
+    // Check if the category exists
+    const categoryExists = await categoryModel.findOne({ name: category });
+    if (!categoryExists) {
+      return res.status(400).json({ 
+        status: false, 
+        message: `Category '${category}' does not exist.` 
+      });
+    }
+
+    // Create and save the new expense
+    const expenseDate = date ? new Date(date) : new Date();
+    const newExpense = new expense({ name, amount, category, date: expenseDate });
     await newExpense.save();
-    // res.status(201).json(newExpense);
-    // return the newly created expense with status true and message Expense added successfully
-    res.json({ status: true, message: 'Expense added successfully', data: newExpense });
-    
+
+    res.json({
+      status: true,
+      message: 'Expense added successfully',
+      data: newExpense
+    });
   } catch (err) {
-    console.error(err); // Log the error for debugging
-    res.status(500).json({ message: 'Server error' });
+    console.error(err);
+    res.status(500).json({
+      status: false,
+      message: 'Server error',
+    });
   }
 });
 
